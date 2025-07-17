@@ -34,14 +34,15 @@ app.include_router(api_router, prefix="/api")
 async def root():
     """Serves the main index.html file."""
     try:
-        with open("index.html", "r") as file:
+        with open("static/index.html", "r") as file:
             return file.read()
     except FileNotFoundError:
         # Provide a helpful message if the UI file is missing
-        return """
-        <h1>Error: index.html not found</h1>
-        <p>Please ensure the index.html file is present in the project root.</p>
-        """
+        return (
+            "<h1>Error: static/index.html not found</h1>"
+            "<p>Please ensure the index.html file is in a 'static' directory.</p>"
+        )
+
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI Web Server...")
