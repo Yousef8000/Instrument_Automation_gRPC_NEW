@@ -37,10 +37,10 @@ async def root():
             return file.read()
     except FileNotFoundError:
         # Provide a helpful message if the UI file is missing
-        return """
-        <h1>Error: static/index.html not found</h1>
-        <p>Please ensure the index.html file is in a 'static' sub-directory.</p>
-        """
+        return (
+            "<h1>Error: static/index.html not found</h1>"
+            "<p>Please ensure the index.html file is in a 'static' directory.</p>"
+        )
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI Web Server...")
