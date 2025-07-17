@@ -4,7 +4,7 @@ import json
 import instrument_pb2
 import instrument_pb2_grpc
 # Updated import path after project restructure
-import instrument as instr_module
+from services import instrument as instr_module
 
 class InstrumentServiceServicer(instrument_pb2_grpc.InstrumentServiceServicer):
 
