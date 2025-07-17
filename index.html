@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Keithley 2230G Remote Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .button { padding: 12px 20px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        input, select { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 3px; width: auto; min-width: 200px; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .status.connected { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.disconnected { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .power-controls { display: flex; justify-content: center; margin: 10px 0; }
+        .power-btn { padding: 12px 24px; font-size: 14px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+        .power-on { background: #28a745; color: white; }
+        .power-off { background: #dc3545; color: white; }
+        .channel-selector { display: flex; gap: 10px; margin: 10px 0; }
+        .channel-btn { padding: 8px 16px; border: 2px solid #007bff; background: white; color: #007bff; border-radius: 5px; cursor: pointer; }
+        .channel-btn.active { background: #007bff; color: white; }
+        #plotDiv { height: 400px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Keithley 2230G Remote Control</h1>
+
+        <div class="section">
+            <h3>Connection</h3>
+            <button class="button btn-primary" onclick="scanDevices()">Scan Devices</button>
+            <select id="deviceSelect"></select>
+            <button class="button btn-success" id="connectBtn" onclick="connectDevice()" disabled>Connect</button>
+            <button class="button btn-danger" id="disconnectBtn" onclick="disconnectDevice()" style="display:none;">Disconnect</button>
+            <div id="connectionStatus" class="status disconnected">Not Connected</div>
+        </div>
+
+        <div class="section master-output">
+            <div class="power-controls">
+                <button class="power-btn power-off" id="powerBtn" onclick="togglePower()" disabled>Turn ON</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Channel Selection (for Monitoring & Plotting)</h3>
+            <div class="channel-selector">
+                <button class="channel-btn active" id="ch1-btn" onclick="selectChannel(1)">Channel 1</button>
+                <button class="channel-btn" id="ch2-btn" onclick="selectChannel(2)">Channel 2</button>
+                <button class="channel-btn" id="ch3-btn" onclick="selectChannel(3)">Channel 3</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h3>Power Supply Control</h3>
+            <label>Voltage Limit (V):</label> <input type="number" id="voltageLimit" value="15.0" step="0.1" min="0" max="30">
+            <label>Voltage Set (V):</label> <input type="number" id="voltageSet" value="5.0" step="0.1" min="0" max="30">
+            <label>Current (A):</label> <input type="number" id="current" value="1.0" step="0.1" min="0" max="5">
+            <button class="button btn-primary" id="applyBtn" onclick="applySettings()" disabled>Apply to Channel</button>
+        </div>
+
+        <div class="section">
+            <h3>Real-time Voltage Monitor</h3>
+            <div id="plotDiv"></div>
+            <button class="button btn-secondary" onclick="clearPlot()">Clear Plot</button>
+        </div>
+    </div>
+
+<script>
+    // --- START OF NEW, COMPLETE JAVASCRIPT LOGIC ---
+
+    // Global state variables
+    let isConnected = false;
+    let currentChannel = 1;
+    let plotUpdateInterval = null;
+    let statusUpdateInterval = null;
+
+    // DOM Element references for easy access
+    const connectBtn = document.getElementById('connectBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const powerBtn = document.getElementById('powerBtn');
+    const applyBtn = document.getElementById('applyBtn');
+    const deviceSelect = document.getElementById('deviceSelect');
+    const connectionStatusDiv = document.getElementById('connectionStatus');
+
+    /**
+     * A robust, generic function for making API calls.
+     * It handles requests and standardizes error handling.
+     */
+    async function apiCall(endpoint, method = 'GET', data = null) {
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (data) options.body = JSON.stringify(data);
+
+        const response = await fetch(endpoint, options);
+        const result = await response.json();
+
+        if (!response.ok) {
+            // If the server returns an error, use its detailed message.
+            throw new Error(result.detail || 'API request failed');
+        }
+        return result;
+    }
+
+    /**
+     * Scans for devices and correctly populates the UI dropdown.
+     */
+    async function scanDevices() {
+        console.log("Scanning for devices...");
+        deviceSelect.innerHTML = '<option>Scanning...</option>';
+        connectBtn.disabled = true;
+
+        try {
+            // The API now returns a simple array directly.
+            const devices = await apiCall('/api/devices', 'GET');
+            deviceSelect.innerHTML = ''; // Clear "Scanning..."
+
+            if (devices.length > 0 && !devices[0].toLowerCase().includes("error")) {
+                // SUCCESS CASE: We found one or more devices.
+                devices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device;
+                    option.textContent = device;
+                    deviceSelect.appendChild(option);
+                });
+                connectBtn.disabled = false; // Enable the connect button.
+            } else {
+                // FAILURE CASE: List is empty or contains an error message.
+                const option = document.createElement('option');
+                option.textContent = devices.length === 0 ? "No devices found" : devices[0];
+                deviceSelect.appendChild(option);
+            }
+        } catch (error) {
+            deviceSelect.innerHTML = '<option>Error during scan</option>';
+            alert('Error scanning for devices: ' + error.message);
+        }
+    }
+
+    /**
+     * Connects to the device selected in the dropdown.
+     */
+    async function connectDevice() {
+        const deviceAddress = deviceSelect.value;
+        if (!deviceAddress || deviceAddress.toLowerCase().includes("no devices")) {
+            return;
+        }
+
+        try {
+            const result = await apiCall('/api/connect', 'POST', { device_address: deviceAddress });
+            updateUIForConnectedState(result.device_info);
+        } catch (error) {
+            alert('Connection Error: ' + error.message);
+        }
+    }
+
+    /**
+     * Disconnects from the current device and resets the UI.
+     */
+    async function disconnectDevice() {
+        try {
+            await apiCall('/api/disconnect', 'POST');
+        } catch (error) {
+            console.error("Error during disconnect, but resetting UI anyway:", error);
+        } finally {
+            updateUIForDisconnectedState();
+        }
+    }
+
+    /**
+     * Sends the current power supply settings to the server.
+     */
+    async function applySettings() {
+        const settings = {
+            channel: currentChannel,
+            voltage_limit: parseFloat(document.getElementById('voltageLimit').value),
+            voltage_set: parseFloat(document.getElementById('voltageSet').value),
+            current: parseFloat(document.getElementById('current').value)
+        };
+        try {
+            const result = await apiCall('/api/settings', 'POST', settings);
+            alert(result.message);
+        } catch (error) {
+            alert('Failed to apply settings: ' + error.message);
+        }
+    }
+
+    /**
+     * Toggles the master power output for all channels.
+     */
+    async function togglePower() {
+        try {
+            const status = await apiCall('/api/status', 'GET');
+            await apiCall('/api/output', 'POST', { state: !status.output_state });
+            updateStatus(); // Update UI immediately after toggle.
+        } catch (error) {
+            alert('Failed to toggle power: ' + error.message);
+        }
+    }
+
+    /**
+     * Periodically fetches and updates the device status (e.g., power button state).
+     */
+    async function updateStatus() {
+        if (!isConnected) return;
+        try {
+            const status = await apiCall('/api/status', 'GET');
+            if (status.output_state) {
+                powerBtn.className = 'power-btn power-on';
+                powerBtn.textContent = 'Turn OFF';
+            } else {
+                powerBtn.className = 'power-btn power-off';
+                powerBtn.textContent = 'Turn ON';
+            }
+        } catch (error) {
+            console.error("Failed to update status:", error);
+        }
+    }
+
+    /**
+     * Periodically fetches and updates the real-time plot.
+     */
+    async function updatePlot() {
+        if (!isConnected) return;
+        try {
+            const plotData = await apiCall(`/api/plot-data`, 'GET');
+            if (plotData.time && plotData.time.length > 0) {
+                const trace = { x: plotData.time, y: plotData.voltage, type: 'scatter', mode: 'lines+markers' };
+                const layout = { title: `Real-time Voltage - Channel ${currentChannel}`, xaxis: { title: 'Time' }, yaxis: { title: 'Voltage (V)', autorange: true } };
+                Plotly.newPlot('plotDiv', [trace], layout, {responsive: true});
+            } else {
+                Plotly.purge('plotDiv');
+            }
+        } catch (error) {
+            console.error("Failed to update plot:", error);
+        }
+    }
+
+    /**
+     * Changes the active channel for monitoring and plotting.
+     */
+    function selectChannel(ch) {
+        currentChannel = ch;
+        document.querySelectorAll('.channel-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(`ch${ch}-btn`).classList.add('active');
+        if (isConnected) {
+            apiCall('/api/set-channel', 'POST', { channel: ch });
+            updatePlot(); // Update plot immediately on channel change.
+        }
+    }
+
+    /**
+     * Clears plot data on the server and in the UI.
+     */
+    async function clearPlot() {
+        if (!isConnected) return;
+        await apiCall('/api/clear-data', 'POST');
+        Plotly.purge('plotDiv');
+    }
+
+    // --- UI State Management Functions ---
+
+    /** Puts the UI into the "Connected" state. */
+    function updateUIForConnectedState(deviceInfo) {
+        isConnected = true;
+        connectionStatusDiv.textContent = 'Connected: ' + deviceInfo;
+        connectionStatusDiv.className = 'status connected';
+        connectBtn.style.display = 'none';
+        disconnectBtn.style.display = 'inline-block';
+        deviceSelect.disabled = true;
+        powerBtn.disabled = false;
+        applyBtn.disabled = false;
+
+        statusUpdateInterval = setInterval(updateStatus, 3000);
+        plotUpdateInterval = setInterval(updatePlot, 2000);
+        updateStatus();
+        updatePlot();
+    }
+
+    /** Puts the UI into the "Disconnected" state. */
+    function updateUIForDisconnectedState() {
+        isConnected = false;
+        connectionStatusDiv.textContent = 'Not Connected';
+        connectionStatusDiv.className = 'status disconnected';
+        connectBtn.style.display = 'inline-block';
+        disconnectBtn.style.display = 'none';
+        deviceSelect.disabled = false;
+        powerBtn.disabled = true;
+        applyBtn.disabled = true;
+
+        clearInterval(statusUpdateInterval);
+        clearInterval(plotUpdateInterval);
+        Plotly.purge('plotDiv');
+        scanDevices(); // Automatically scan for devices.
+    }
+
+    // Initialize the page when it loads.
+    window.onload = updateUIForDisconnectedState;
+
+</script>
+</body>
+</html>

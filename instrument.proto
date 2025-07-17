@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+message Empty {}
+
+message StatusResponse {
+    // JSON string representing the full device status
+    string status = 1;
+}
+
+message ChannelRequest {
+    int32 channel = 1;
+    float voltage_limit = 2;
+    float voltage = 3;
+    float current = 4;
+}
+
+message ChannelResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message DeviceListResponse {
+    repeated string devices = 1;
+}
+
+message DeviceRequest {
+    string address = 1;
+}
+
+message ConnectionResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message OutputRequest {
+    // Use channel = 0 to control all channels
+    int32 channel = 1;
+    bool state = 2;
+}
+
+message OutputResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message PlotDataRequest {
+    int32 channel = 1;
+}
+
+message PlotDataResponse {
+    repeated string time = 1;
+    repeated float voltage = 2;
+    int32 channel = 3;
+}
+
+// Request to set the currently monitored channel
+message SetChannelRequest {
+    int32 channel = 1;
+}
+
+
+service InstrumentService {
+    rpc InitializeVISA(Empty) returns (ConnectionResponse);
+    rpc ListDevices(Empty) returns (DeviceListResponse);
+    rpc ConnectDevice(DeviceRequest) returns (ConnectionResponse);
+    rpc DisconnectDevice(Empty) returns (ConnectionResponse);
+    rpc GetStatus(Empty) returns (StatusResponse);
+    rpc SetChannel(ChannelRequest) returns (ChannelResponse);
+    rpc SetOutput(OutputRequest) returns (OutputResponse);
+    rpc SetCurrentChannel(SetChannelRequest) returns (ConnectionResponse);
+    rpc GetPlotData(PlotDataRequest) returns (PlotDataResponse);
+    rpc ClearData(Empty) returns (ConnectionResponse);
+}
