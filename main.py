@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 # Updated import path after project restructure
-from routes import router as api_router
+from api.routes import router as api_router
 from contextlib import asynccontextmanager
 import uvicorn
 import os
