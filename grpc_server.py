@@ -3,7 +3,8 @@ from concurrent import futures
 import json
 import instrument_pb2
 import instrument_pb2_grpc
-import services.instrument as instr_module
+# Updated import path after project restructure
+import instrument as instr_module
 
 class InstrumentServiceServicer(instrument_pb2_grpc.InstrumentServiceServicer):
 

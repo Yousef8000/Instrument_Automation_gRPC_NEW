@@ -18,17 +18,13 @@ A modern FastAPI web application for remote control and monitoring of the Keithl
 
 ```
 main.py
-api/
-    routes.py
-models/
-    schema.py
-services/
-    instrument.py
-    monitor.py
-static/
-    index.html
-utils/
-    helpers.py
+routes.py
+schema.py
+instrument.py
+monitor.py
+grpc_server.py / grpc_client.py
+helpers.py
+index.html
 ```
 
 ---
