@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from api.routes import router as api_router
+# Updated import path after project restructure
+from routes import router as api_router
 from contextlib import asynccontextmanager
 import uvicorn
 import os
@@ -26,7 +27,7 @@ if not os.path.exists("static"):
     os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Include all the API endpoints from api/routes.py
+# Include all the API endpoints from routes.py
 app.include_router(api_router, prefix="/api")
 
 @app.get("/", response_class=HTMLResponse)
@@ -41,6 +42,7 @@ async def root():
             "<h1>Error: static/index.html not found</h1>"
             "<p>Please ensure the index.html file is in a 'static' directory.</p>"
         )
+
 
 if __name__ == "__main__":
     print("🚀 Starting FastAPI Web Server...")
